@@ -2,9 +2,21 @@
 <html>
 <head>
 	<title>sumulator</title>
+	<style type="text/css">
+		#chartContainer {
+			height:400px;
+		}
+		#summaryContainer {
+			padding: 20px 40px;
+		}
+	</style>
+	<script src="https://code.highcharts.com/highcharts.js"></script>
 </head>
 <body>
-
+<div id="container">
+	<div id="chartContainer"></div>
+	<div id="summaryContainer"></div>
+</div>
 </body>
 </html>
 
@@ -223,8 +235,6 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 	};
 
 	Simulator.prototype.printOutput = function () {
-		// print out data sets
-		// or/and use some charting lib
 
 		if (configs.debug) 
 		{
@@ -232,8 +242,14 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 			console.log("sugarLevel:", this.sugarLevel);
 			console.log("glycation:",  this.glycation);
 		}
-	};
 
+		// print graph
+		drawChart.call(this);
+
+		// print summary of activities
+		printActivites.call(this);
+
+	};
 
 	// define activities
 
@@ -256,6 +272,59 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 		this.addition = false;
 	};
 	utils.extendsFromSuper(Activity,ActivityExcercise);
+
+
+	// ui related decorators
+
+	var printActivites = function () {
+
+		var id = 'summaryContainer';
+		var s = ""; // summary content
+
+		s += "<h3>Activities Summary</h3>";
+
+		this.activities.forEach(function (item, index) {
+			s += "\n<div>" + (index+1) +". " + item.name + " (";
+			s += (item.addition ? '+':'-') + item.value + ") ";
+			s += "at " + item.time + "</div>\n";
+		});
+
+		document.getElementById(id).innerHTML = s;
+
+	};
+
+	var drawChart = function () {
+
+		var id = 'chartContainer';
+		var dataAdapter = function (items) {
+			var list = [];
+			items.forEach(function (item) {
+				list.push([item.time, item.value]);
+			});
+			return list;
+		};
+
+		var sugarSeries = dataAdapter(this.sugarLevel);
+		var glycationSeries = dataAdapter(this.glycation);
+
+		// instantiate highcharts
+		Highcharts.chart(id, {
+			title: {
+				text: 'Simulated Graph'
+			},
+			// legend: {symbolWidth: 80},
+			series: [{
+				name: "sugar",
+				data: sugarSeries,
+				color: '#000000'
+			},
+			{
+				name: "glycation",
+				data: glycationSeries,
+				color: '#FF0000'
+			}]
+		});
+	};
 
 
 	return {
