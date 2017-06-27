@@ -283,10 +283,11 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 
 		s += "<h3>Activities Summary</h3>";
 
+		// this is super ugly, but took just a minute to do
 		this.activities.forEach(function (item, index) {
 			s += "\n<div>" + (index+1) +". " + item.name + " (";
 			s += (item.addition ? '+':'-') + item.value + ") ";
-			s += "at " + item.time + "</div>\n";
+			s += "at " + tickToTime(item.time, {hs:true}) + "</div>\n";
 		});
 
 		document.getElementById(id).innerHTML = s;
@@ -299,7 +300,7 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 		var dataAdapter = function (items) {
 			var list = [];
 			items.forEach(function (item) {
-				list.push([item.time, item.value]);
+				list.push([tickToTime(item.time), item.value]);
 			});
 			return list;
 		};
@@ -311,6 +312,9 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 		Highcharts.chart(id, {
 			title: {
 				text: 'Simulated Graph'
+			},
+			xAxis: {
+				type: 'datetime'
 			},
 			// legend: {symbolWidth: 80},
 			series: [{
@@ -325,6 +329,31 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 			}]
 		});
 	};
+
+	// helper method to convert tick time index (that represents minutes) into ordinary time format
+	var tickToTime = (function () {
+		var midnightUTC = (new Date()).setUTCHours(0,0,0,0);
+		var multiplier = 60*1000; // seconds in minutes by milis
+		return function (minutes, format) {
+
+			// utc epoch time of a point
+			var time = midnightUTC + minutes * multiplier;
+			var hour,minute;
+
+			// return utc epoch time if no formatting required
+			if (!format) return time;
+
+			// otherwise return formatted
+			if (format.hs) {
+				time = new Date(time);
+				hour = time.getUTCHours();
+				minute = time.getUTCMinutes();
+				if (minute<10) minute = "0" + minute;
+				return hour + ":" + minute;
+			}
+
+		};
+	})();
 
 
 	return {
