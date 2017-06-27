@@ -32,11 +32,14 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 (function () {
 
 	var configs = {
+			debug: true,
 			tickInterval: 1, // one minute, unit of time lapse for x-axis
-			dateInterval: 24 * 60,
+			ticksInDay: 24 * 60,
 			sugarLevelInit: 80,
 			sugarLevelDefault: 80,
+			sugarLevelStep: 1,
 			glycationLevelInit: 0,
+			glycationStep: 1,
 			glycationFloor: 150,
 			durationIngestion: 120, // minutes
 			durationExcercise:  60, // minutes
@@ -56,7 +59,7 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 				return Math.floor(Math.random() * (max-min)) + min;
 		},
 		randomTime: function () {
-			return utils.randomInt(configs.dateInterval);
+			return utils.randomInt(configs.ticksInDay);
 		},
 		randomActivity: function (activity) {
 			var types = {
@@ -67,6 +70,32 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 			var item = items[utils.randomInt(items.length)];
 			return new (types[activity].subClass)(item);
 		},
+		numFormat: function (num, override) {
+			// helper to deal with floating arithmetic issues
+			var precision = 100000;
+			var value = Math.round(num*precision)/precision;
+			if (!override && !Number.isInteger(value)) 
+			{
+				var tmp = Math.round(value);
+				if (utils.numFormat(tmp / value, true) === 1) value = tmp;
+			}
+			return value;
+		},
+		getLast: function () {
+			// returns last element of list
+			return this[this.length-1];
+		},
+		addLast: function (item) {
+			// appends new element to a list
+			this.push(item);
+		},
+		newItem: function (time, value) {
+			// returns data point item
+			return {
+				time: time,
+				value: utils.numFormat(value)
+			};
+		}
 	};
 
 
@@ -78,9 +107,9 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 		this.glycation  = []; // list of glycation level variations over day
 		this.sugarLevel = []; // list of sugar level variations over day
 
-		// initialize metrics with @ 0th time moment
-		this.glycation.push( {time:0, value:configs.glycationLevelInit});
-		this.sugarLevel.push({time:0, value:configs.sugarLevelInit});
+		// initialize metrics @ 0th time moment
+		this.glycation.push( utils.newItem(0, configs.glycationLevelInit));
+		this.sugarLevel.push(utils.newItem(0, configs.sugarLevelInit));
 
 		this.run = function () {
 			this.fetchActivities();
@@ -88,9 +117,48 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 			this.printOutput();
 		};
 
-		this.updateMetrics = function (args) {
-
+		this.addGlycationEntry = function(timeIndex) {
+			var lastItem = utils.getLast.call(this.glycation);
+			var value = lastItem.value + configs.glycationStep;
+			utils.addLast.call(this.glycation, utils.newItem(timeIndex, value));
 		};
+
+		this.newSugarLevel = function (timeIndex, value, givenLastItem) {
+			var lastItem = givenLastItem || utils.getLast.call(this.sugarLevel);
+			var newValue = givenLastItem ? value : lastItem.value + value;
+			utils.addLast.call(this.sugarLevel, utils.newItem(timeIndex, newValue));
+			if (newValue > configs.glycationFloor) this.addGlycationEntry(timeIndex);
+		};
+
+		this.normalizeSugarLevel = function (timeIndex) {
+			var lastItem = utils.getLast.call(this.sugarLevel);
+			if (!this.isNormalSugar(lastItem.value)) 
+			{
+				var newValue = this.getNormalizedSugarLevel(lastItem.value);
+				this.newSugarLevel(timeIndex, newValue, lastItem);
+			}
+		};
+
+		this.isNormalSugar = function (value) {
+			// returns true only if sugar is normal
+			return !(configs.sugarLevelDefault - value);
+		}
+
+		this.getNormalizedSugarLevel = function (value) {
+
+			var diff = configs.sugarLevelDefault - value;
+			var newValue = value;
+
+			if (Math.abs(diff) >= configs.sugarLevelStep) 
+			{
+				if (diff < 0) newValue -= configs.sugarLevelStep;
+				else newValue += configs.sugarLevelStep;
+			} 
+			else newValue = configs.sugarLevelDefault;
+
+			return newValue;
+		};
+
 
 	}
 
@@ -98,24 +166,72 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 
 	Simulator.prototype.fetchActivities = function () {
 		// for now just fetch 2 random activities
+
+		this.activities.push(utils.randomActivity.call(this,'excercise'));
 		this.activities.push(utils.randomActivity.call(this,'excercise'));
 		this.activities.push(utils.randomActivity.call(this,'ingestion'));
-		console.log(this.activities);
+		this.activities.push(utils.randomActivity.call(this,'ingestion'));
+		this.activities.push(utils.randomActivity.call(this,'ingestion'));
+		this.activities.push(utils.randomActivity.call(this,'ingestion'));
+		this.activities.push(utils.randomActivity.call(this,'ingestion'));
+
 	};
 
 	Simulator.prototype.processData = function () {
-		
-		// The idea is:
-		// 1) derive data points from activities
-		// 2) store value deviations into a hashmap for every time "tick"
-		// 3) .... then we use hash entries to populate sugarLevel list and adjust glycation where appropriate
-		// 4) .... (not to fogret to push sugar by 1 towards 80 for regions of inactivity)
+
+		// points = helper list, hold cumulative deviation values for all activity data points, point index is time
+		var points = []; 
+		var firstIndex = Infinity; // helper to keep track of the start earliest scheduled activity
+
+		// fill in helper data points
+		this.activities.forEach(function (activity) {
+
+			var i = activity.time;
+			var max = i + activity.duration;
+			var magnitude = activity.value / activity.duration; // step deviation value
+
+			if (activity.addition===false) magnitude = -magnitude; // sign adjustment
+
+			if (i < firstIndex) firstIndex = i;
+
+			for ( ; i<max; i++) 
+			{
+				if (points[i]===undefined) points[i] = magnitude // new data point
+				else points[i] += magnitude; // override of existing data point
+			}
+		});
+
+		// now simple brute force to get the job done
+
+		var i = firstIndex; // this is the start time of the earliest available activity point
+		var max = configs.ticksInDay; // upper time bound for time in day
+
+		for (; i<max; i++) 
+		{
+			// if activity exists at this time tick
+			if (points[i]!==undefined) this.newSugarLevel(i, points[i]);
+			// otherwise handle normalization of sugar level towards configs.sugarLevelDefault
+			else this.normalizeSugarLevel(i);
+		}
+
+		if (configs.debug) 
+		{
+			console.log("firstIndex: " + firstIndex);
+			console.log("points:", points);
+		}
 
 	};
 
 	Simulator.prototype.printOutput = function () {
 		// print out data sets
 		// or/and use some charting lib
+
+		if (configs.debug) 
+		{
+			console.log("activities:", this.activities);
+			console.log("sugarLevel:", this.sugarLevel);
+			console.log("glycation:",  this.glycation);
+		}
 	};
 
 
@@ -124,7 +240,7 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 	var Activity = function (info, time) {
 		this.name  = info.name;
 		this.value = info.value; // glycemic index value
-		this.time  = time || utils.randomTime(configs.dateInterval);  // start time
+		this.time  = time || utils.randomTime(configs.ticksInDay);  // start time
 	};
 
 	var ActivityIngestion = function () {
