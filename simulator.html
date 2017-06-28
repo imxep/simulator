@@ -3,17 +3,76 @@
 <head>
 	<title>sumulator</title>
 	<style type="text/css">
+		body {
+			margin:0;
+			padding:0;
+		}
+		.memo {
+			padding:20px 40px 30px;
+			background: linear-gradient(to bottom, rgba(0,0,0,0), rgba(100,100,100,0.1));
+			border-bottom: solid 1px #555;
+			margin-bottom: 20px;
+		}
 		#chartContainer {
 			height:400px;
 		}
 		#summaryContainer {
 			padding: 20px 40px;
 		}
+		#controls {
+			padding: 20px 40px;
+		}
+		input[type=button] {
+			display: inline-block;
+			font-size: 150%;
+			padding: 20px 40px;
+			border: solid 1px #777;
+			border-radius: 10px;
+		}
+		.btn {
+			border: solid 1px #777;
+			display: inline-block;
+			padding: 5px;
+			background: #ccf;
+			border-radius: 5px;			
+		}
+		form div {
+			padding-bottom: 15px;
+		}
+		form ol {
+			    padding-left: 15px;
+		}
+		h3 {
+			margin-top: 0;
+			margin-bottom: 18px;
+		}
 	</style>
 	<script src="https://code.highcharts.com/highcharts.js"></script>
 </head>
 <body>
 <div id="container">
+	<div class="memo">Note: all generated series will be printed via console.log() with configs.debug eq true (default)</div>
+	<div id="controls">
+		<div style="float:left;padding-right:80px;">
+			<input type="button" value="Random Pick" onclick="simulator.runRandom();" />
+		</div>
+		<div style="float:left;width:50%;">
+			<h3>Or choose custom...</h3>
+			<form id="userInput" onclick="simulator.acquireUserInput(event)">
+				<div id="stepChoose" style="display:block;">
+					<span class="btn" data-cmd="AddFood">+ Add Food</span>
+					 or 
+					<span class="btn" data-cmd="AddExercise">+ Add Exercise</span>
+				</div>
+				<div id="stepAddExercise" style="display:none;"></div>
+				<div id="stepAddFood" style="display:none;"></div>
+				<ol id="userChoices"></ol>
+				<div id="stepRun" style="display:none;">
+					<input type="button" value="Run Simulator" onclick="simulator.run();" />
+				</div>
+			</form>
+		</div>
+	</div>
 	<div id="chartContainer"></div>
 	<div id="summaryContainer"></div>
 </div>
@@ -41,7 +100,7 @@ var stubExcercise = [{id:1,name:"Crunches",value:20},{id:2,name:"Walking",value:
 var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,name:"Banana cake, made without sugar",value:55},{id:3,name:"Sponge cake, plain",value:46},{id:4,name:"Vanilla cake made from packet mix with vanilla frosting (Betty Crocker)",value:42},{id:5,name:"Apple, made with sugar",value:44},{id:6,name:"Apple, made without sugar",value:48},{id:7,name:"Waffles, Aunt Jemima (Quaker Oats)",value:76},{id:8,name:"Bagel, white, frozen",value:72},{id:9,name:"Baguette, white, plain",value:95},{id:10,name:"Coarse barley bread, 75-80% kernels, average",value:34},{id:11,name:"Hamburger bun",value:61},{id:12,name:"Kaiser roll",value:73},{id:13,name:"Pumpernickel bread",value:56},{id:14,name:"50% cracked wheat kernel bread",value:58},{id:15,name:"White wheat flour bread",value:71},{id:16,name:"Wonder&#8482; bread, average",value:73},{id:17,name:"Whole wheat bread, average",value:71},{id:18,name:"100% Whole Grain&#8482; bread (Natural Ovens)",value:51},{id:19,name:"Pita bread, white",value:68},{id:20,name:"Corn tortilla",value:52},{id:21,name:"Wheat tortilla",value:30},{id:23,name:"Coca Cola&#174;, average",value:63},{id:24,name:"Fanta&#174;, orange soft drink",value:68},{id:25,name:"Lucozade&#174;, original (sparkling glucose drink)",value:95},{id:26,name:"Apple juice, unsweetened, average",value:44},{id:27,name:"Cranberry juice cocktail (Ocean Spray&#174;)",value:68},{id:28,name:"Gatorade",value:78},{id:29,name:"Orange juice, unsweetened",value:50},{id:30,name:"Tomato juice, canned",value:38},{id:32,name:"All-Bran&#8482;, average",value:55},{id:33,name:"Coco Pops&#8482;, average",value:77},{id:34,name:"Cornflakes&#8482;, average",value:93},{id:35,name:"Cream of Wheat&#8482; (Nabisco)",value:66},{id:36,name:"Cream of Wheat&#8482;, Instant (Nabisco)",value:74},{id:37,name:"Grapenuts&#8482;, average",value:75},{id:38,name:"Muesli, average",value:66},{id:39,name:"Oatmeal, average",value:55},{id:40,name:"Instant oatmeal, average",value:83},{id:41,name:"Puffed wheat, average",value:80},{id:42,name:"Raisin Bran&#8482; (Kellogg's)",value:61},{id:43,name:"Special K&#8482; (Kellogg's)",value:69},{id:45,name:"Pearled barley, average",value:28},{id:46,name:"Sweet corn on the cob, average",value:60},{id:47,name:"Couscous, average",value:65},{id:48,name:"Quinoa",value:53},{id:49,name:"White rice, average",value:89},{id:50,name:"Quick cooking white basmati",value:67},{id:51,name:"Brown rice, average",value:50},{id:52,name:"Converted, white rice (Uncle Ben's&#174;)",value:38},{id:53,name:"Whole wheat kernels, average",value:30},{id:54,name:"Bulgur, average",value:48},{id:56,name:"Graham crackers",value:74},{id:57,name:"Vanilla wafers",value:77},{id:58,name:"Shortbread",value:64},{id:59,name:"Rice cakes, average",value:82},{id:60,name:"Rye crisps, average",value:64},{id:61,name:"Soda crackers",value:74},{id:63,name:"Ice cream, regular",value:57},{id:64,name:"Ice cream, premium",value:38},{id:65,name:"Milk, full fat",value:41},{id:66,name:"Milk, skim",value:32},{id:67,name:"Reduced-fat yogurt with fruit, average",value:33},{id:69,name:"Apple, average",value:39},{id:70,name:"Banana, ripe",value:62},{id:71,name:"Dates, dried",value:42},{id:72,name:"Grapefruit",value:25},{id:73,name:"Grapes, average",value:59},{id:74,name:"Orange, average",value:40},{id:75,name:"Peach, average",value:42},{id:76,name:"Peach, canned in light syrup",value:40},{id:77,name:"Pear, average",value:38},{id:78,name:"Pear, canned in pear juice",value:43},{id:79,name:"Prunes, pitted",value:29},{id:80,name:"Raisins",value:64},{id:81,name:"Watermelon",value:72},{id:83,name:"Baked beans, average",value:40},{id:84,name:"Blackeye peas, average",value:33},{id:85,name:"Black beans",value:30},{id:86,name:"Chickpeas, average",value:10},{id:87,name:"Chickpeas, canned in brine",value:38},{id:88,name:"Navy beans, average",value:31},{id:89,name:"Kidney beans, average",value:29},{id:90,name:"Lentils, average",value:29},{id:91,name:"Soy beans, average",value:15},{id:92,name:"Cashews, salted",value:27},{id:93,name:"Peanuts, average",value:7},{id:95,name:"Fettucini, average",value:32},{id:96,name:"Macaroni, average",value:47},{id:97,name:"Macaroni and Cheese (Kraft)",value:64},{id:98,name:"Spaghetti, white, boiled, average",value:46},{id:99,name:"Spaghetti, white, boiled 20 min, average",value:58},{id:100,name:"Spaghetti, wholemeal, boiled, average",value:42},{id:102,name:"Corn chips, plain, salted, average",value:42},{id:103,name:"Fruit Roll-Ups&#174;",value:99},{id:104,name:"M & M's&#174;, peanut",value:33},{id:105,name:"Microwave popcorn, plain, average",value:55},{id:106,name:"Potato chips, average",value:51},{id:107,name:"Pretzels, oven-baked",value:83},{id:108,name:"Snickers Bar&#174;",value:51},{id:111,name:"Carrots, average",value:35},{id:112,name:"Parsnips",value:52},{id:113,name:"Baked russet potato, average",value:111},{id:114,name:"Boiled white potato, average",value:82},{id:115,name:"Instant mashed potato, average",value:87},{id:116,name:"Sweet potato, average",value:70},{id:117,name:"Yam, average",value:54},{id:110,name:"Green peas, average",value:51},{id:119,name:"Hummus (chickpea salad dip)",value:6},{id:120,name:"Chicken nuggets, frozen, reheated in microwave oven 5 min",value:46},{id:121,name:"Pizza, plain baked dough, served with parmesan cheese and tomato sauce",value:80},{id:122,name:"Pizza, Super Supreme (Pizza Hut)",value:36},{id:123,name:"Honey, average",value:61}];
 
 
-(function () {
+var simulator = (function () {
 
 	var configs = {
 			debug: true,
@@ -55,6 +114,10 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 			glycationFloor: 150,
 			durationIngestion: 120, // minutes
 			durationExcercise:  60, // minutes
+			randomActivities: {
+				min:5,
+				max:15,
+			},
 	};
 
 	var utils = {
@@ -73,14 +136,24 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 		randomTime: function () {
 			return utils.randomInt(configs.ticksInDay);
 		},
+		newActivity: function (activity) {
+			var types = {
+				excercise : {subClass:ActivityExcercise,stub:'stubExcercise'},
+				ingestion : {subClass:ActivityIngestion,stub:'stubIngestion'},
+			};
+			var item = window[types[activity.key].stub][activity.id];
+			return new (types[activity.key].subClass)(item, activity.time);
+		},
 		randomActivity: function (activity) {
 			var types = {
 				excercise : {subClass:ActivityExcercise,stub:'stubExcercise'},
 				ingestion : {subClass:ActivityIngestion,stub:'stubIngestion'},
 			};
-			var items = window[types[activity].stub];
-			var item = items[utils.randomInt(items.length)];
-			return new (types[activity].subClass)(item);
+			return utils.newActivity({
+				key: activity,
+				id:  utils.randomInt(window[types[activity].stub].length),
+				time: utils.randomTime(configs.ticksInDay),
+			});
 		},
 		numFormat: function (num, override) {
 			// helper to deal with floating arithmetic issues
@@ -115,6 +188,8 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 
 	var Simulator = function () {
 
+		this.random = false;
+
 		this.activities = []; // list of activities to evaluate
 		this.glycation  = []; // list of glycation level variations over day
 		this.sugarLevel = []; // list of sugar level variations over day
@@ -123,10 +198,17 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 		this.glycation.push( utils.newItem(0, configs.glycationLevelInit));
 		this.sugarLevel.push(utils.newItem(0, configs.sugarLevelInit));
 
+		userInputFormInit();
+
 		this.run = function () {
 			this.fetchActivities();
 			this.processData();
 			this.printOutput();
+		};
+
+		this.runRandom = function () {
+			this.random = true;
+			this.run();
 		};
 
 		this.addGlycationEntry = function(timeIndex) {
@@ -172,20 +254,36 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 		};
 
 
-	}
+	};
 
 	// worker functions 
 
-	Simulator.prototype.fetchActivities = function () {
-		// for now just fetch 2 random activities
+	Simulator.prototype.activitySetter = function (activity) {
+		this.activities.push(activity);
+	};
 
-		this.activities.push(utils.randomActivity.call(this,'excercise'));
-		this.activities.push(utils.randomActivity.call(this,'excercise'));
-		this.activities.push(utils.randomActivity.call(this,'ingestion'));
-		this.activities.push(utils.randomActivity.call(this,'ingestion'));
-		this.activities.push(utils.randomActivity.call(this,'ingestion'));
-		this.activities.push(utils.randomActivity.call(this,'ingestion'));
-		this.activities.push(utils.randomActivity.call(this,'ingestion'));
+	Simulator.prototype.fetchActivitiesRandom = function () {
+
+		var type, types = ['excercise','ingestion'];
+		var sample = utils.randomInt(configs.randomActivities.max + 1, configs.randomActivities.min);
+
+		// populate list of activities
+		while (sample>0)
+		{
+			sample--;
+			type = types[utils.randomInt(types.length)];
+			this.activitySetter(utils.randomActivity.call(this,type));
+		}
+
+		// reset random flag
+		this.random = !this.random;
+
+	};
+
+	Simulator.prototype.fetchActivities = function () {
+
+		// if user failed to provide list of activities or if opted for random selection
+		if (this.random || !this.activities.length) this.fetchActivitiesRandom();
 
 	};
 
@@ -243,6 +341,9 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 			console.log("glycation:",  this.glycation);
 		}
 
+		// remove ui controls, no time make it look nice
+		document.getElementById("controls").innerHTML = "";
+
 		// print graph
 		drawChart.call(this);
 
@@ -256,7 +357,7 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 	var Activity = function (info, time) {
 		this.name  = info.name;
 		this.value = info.value; // glycemic index value
-		this.time  = time || utils.randomTime(configs.ticksInDay);  // start time
+		this.time  = time;  // start time
 	};
 
 	var ActivityIngestion = function () {
@@ -280,15 +381,23 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 
 		var id = 'summaryContainer';
 		var s = ""; // summary content
+		var glycation = utils.getLast.call(this.glycation).value;
 
-		s += "<h3>Activities Summary</h3>";
+		s += "<h3>Your end of day glycation index is: " + glycation + "</h3>";
+
+		s += "<h2>Activities Summary</h2>";
 
 		// this is super ugly, but took just a minute to do
-		this.activities.forEach(function (item, index) {
-			s += "\n<div>" + (index+1) +". " + item.name + " (";
+
+		s += "<ol>";
+		this.activities.forEach(function (item) {
+			s += "\n<li>" + item.name + " (";
 			s += (item.addition ? '+':'-') + item.value + ") ";
-			s += "at " + tickToTime(item.time, {hs:true}) + "</div>\n";
+			s += "at " + tickToTime(item.time, {hs:true}) + "</li>\n";
 		});
+		s += "</ol>";
+
+		s += "\n<br /><input type=button value='Reload?' onclick='document.location.href=document.location.href' />";
 
 		document.getElementById(id).innerHTML = s;
 
@@ -304,10 +413,20 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 			});
 			return list;
 		};
+		var addFillerPoint = function (items) {
+			debugger;
+			var maxTime = tickToTime(configs.ticksInDay - 1);
+			var last = items[items.length-1];
+			if (last[0]<maxTime) items.push([maxTime, last[1]]);
+		};
 
 		var sugarSeries = dataAdapter(this.sugarLevel);
 		var glycationSeries = dataAdapter(this.glycation);
 
+		// "workaround" add filler data point to stretch graphs through midnight
+		addFillerPoint(sugarSeries);
+		addFillerPoint(glycationSeries);
+		
 		// instantiate highcharts
 		Highcharts.chart(id, {
 			title: {
@@ -356,13 +475,155 @@ var stubIngestion = [{id:1,name:"Banana cake, made with sugar",value:47},{id:2,n
 	})();
 
 
+	// functionality to obtain user choices...
+
+	Simulator.prototype.acquireUserInput = function (event) {
+
+		var cmd = event.srcElement.dataset.cmd;
+
+		if (cmd == 'AddFood' || cmd == 'AddExercise') 
+		{
+			// update visibilities
+			document.getElementById('stepChoose').style.display = "none";
+			document.getElementById('step'+cmd).style.display = "block";
+		}
+		else if (cmd == 'Save') 
+		{
+			// get form data
+			var form = document.getElementById('userInput');
+			var choices = extractFormValues(form);
+
+			if (!choices) 
+			{
+				alert("To proceed, please select:\n activity, hours, minutes");
+				return;
+			}
+
+			// add activity data to Simulator's activities list
+			var activityMap = {
+				stubIngestion: "ingestion",
+				stubExcercise: "excercise",
+			};
+			this.activitySetter(utils.newActivity({
+				key:  activityMap[choices.itemListName],
+				id:   choices.itemListIndex,
+				time: choices.itemHours * 60 + choices.itemMinutes,
+			}));
+
+			// display chosen selection confirmation in UI:
+			uiSelectionConfirmationLog(choices);
+
+			// reset form
+			form.reset();
+
+			// update visibilities
+			document.getElementById('stepChoose').style.display = "block";
+			document.getElementById('stepAddFood').style.display = "none";
+			document.getElementById('stepAddExercise').style.display = "none";
+			document.getElementById('stepRun').style.display = "block";
+		}
+
+		function uiSelectionConfirmationLog(choice) {
+			var selection = document.createElement('LI');
+			var str = window[choice.itemListName][choice.itemListIndex].name;
+				str+= " at " + choice.itemHours + ":" + choice.itemMinutes;
+			selection.innerHTML = str;
+			document.getElementById('userChoices').appendChild(selection);
+		}
+
+		function extractFormValues(form) {
+
+			var incomplete = false;
+			var result = {
+					itemListIndex: undefined,
+					itemListName: undefined,
+					itemHours: undefined,
+					itemMinutes: undefined,
+			};
+
+			for (var item, value, i=0, m=form.elements.length; i<m; i++) 
+			if (form.elements[i].nodeName==='SELECT') 
+			{
+				item = form.elements[i];
+				if (item.selectedIndex > 0) 
+				{
+					value = item.options[item.selectedIndex].value;
+					if (item.name == "minutes") result.itemMinutes = parseInt(value);
+					else if (item.name == "hours") result.itemHours = parseInt(value);
+					else if (item.name == "itemListId") {
+						result.itemListIndex = parseInt(value); // value is item.id, not index of item in list
+						result.itemListName = item.dataset.src;
+					}
+				}
+
+			}
+
+			// verify that all selections are made
+			for (var key in result) if (result[key]===undefined) incomplete = true;
+
+			// map item.id to proper index of this item in list
+			var stub = window[result.itemListName];
+			for (var i=0, m=stub.length; i<m; i++) 
+			if (stub[i].id === result.itemListIndex) 
+			{
+				result.itemListIndex = i;
+				break;
+			}
+
+
+			console.log(result);
+
+			return incomplete ? false : result;
+
+		};
+
+	};
+
+	var userInputFormInit = function () {
+
+		// quick and ugly setter for user input UX
+
+		var optsNumber = function (min,max) {
+			var options = "<option>--</option>"; // empty initializer option
+			for (var i=min, m=max; i<=m; i++) {
+				options += "\n<option value=" + i + ">" + i + "</option>";
+			}
+			return options;
+		};
+		var optsActivity = function (list) {
+			var options = "<option>Choose Activity</option>"; // empty initializer option
+			window[list].forEach(function (item) {
+				options += "\n<option value=" + item.id + ">";
+				options += item.name + " (" + item.value + ")";
+				options += "</option>";
+
+			});
+			return options;
+		};
+		var formSetter = function(targetId,srcListName) {
+			var s = "<div id=>";
+				s += "<div>Activity: <select name=itemListId data-src="+srcListName+">" + optsActivity(srcListName) + "</select></div>";
+				s += "<div>Time: ";
+				s += "	<select name=hours>" +   optsNumber(0,23) + "</select> hours";
+				s += "	<select name=minutes>" + optsNumber(0,59) + "</select> minutes";
+				s += "</div>";
+				s += "<span class='btn' data-cmd='Save'>+ Save</span>";
+				s += "</div>";
+			document.getElementById(targetId).innerHTML = s;
+		};
+
+		formSetter('stepAddExercise', 'stubExcercise');
+		formSetter('stepAddFood', 'stubIngestion');
+
+	};
+
 	return {
 		init: function () {
 			return new Simulator();
 		},
 	};
 
-})().init().run();
+})().init();
 
 
 </script>
